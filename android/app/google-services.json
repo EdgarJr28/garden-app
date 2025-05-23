@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "231900783109",
+    "project_id": "gardens-app-5a3c4",
+    "storage_bucket": "gardens-app-5a3c4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:231900783109:android:705d44f4543c994d73326c",
+        "android_client_info": {
+          "package_name": "com.example.garden_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCg1-VSK8Hldi4Mmb84Lde0jfMyNpLpiHU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:231900783109:android:2571006c2caaed3573326c",
+        "android_client_info": {
+          "package_name": "com.gardens.app.android22052025"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCg1-VSK8Hldi4Mmb84Lde0jfMyNpLpiHU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
