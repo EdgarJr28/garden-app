@@ -13,6 +13,9 @@ dependencies:
   cloud_firestore: ^5.5.0
   firebase_storage: ^12.3.6
   google_sign_in: ^6.2.2
+  sqflite: ^2.3.0
+  path: ^1.8.3
+  path_provider: ^2.1.2
   flutter:
     sdk: flutter
 

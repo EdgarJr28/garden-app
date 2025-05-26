@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:garden_app/helper/db_helper.dart';
 
 class ZonaCultivoScreen extends StatefulWidget {
   const ZonaCultivoScreen({super.key});
@@ -11,15 +12,24 @@ class ZonaCultivoScreen extends StatefulWidget {
 
 class _ZonaCultivoScreenState extends State<ZonaCultivoScreen> {
   final zonasCollection = FirebaseFirestore.instance.collection('zonas');
+  final participacionesCollection = FirebaseFirestore.instance.collection(
+    'participaciones',
+  );
   String? userName;
+  String? userRole;
+  String? userId;
+  Map<String, bool> zonasRegistradas = {};
 
   @override
   void initState() {
     super.initState();
-    _fetchUserName();
+    /*  DBHelper.eliminarBaseDeDatos().then((_) {
+      debugPrint('DB eliminada');
+    }); */
+    _fetchUserInfo();
   }
 
-  Future<void> _fetchUserName() async {
+  Future<void> _fetchUserInfo() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final doc =
@@ -27,18 +37,50 @@ class _ZonaCultivoScreenState extends State<ZonaCultivoScreen> {
               .collection('usuarios')
               .doc(user.uid)
               .get();
-      setState(() {
-        userName = doc.data()?['nombre'] ?? user.email;
-      });
+      final data = doc.data();
+      if (data != null) {
+        userName = data['nombre'] ?? user.email;
+        userRole = data['rol'] ?? 'usuario';
+        userId = user.uid;
+
+        final registrosLocales = await DBHelper.obtenerParticipaciones(userId!);
+        setState(() {
+          zonasRegistradas = {
+            for (var zonaId in registrosLocales) zonaId: true,
+          };
+        });
+      }
     }
   }
 
-  void _showAddZonaDialog() {
-    final nombreController = TextEditingController();
-    final tamanoController = TextEditingController();
-    final categoriaController = TextEditingController();
-    final cultivoController = TextEditingController();
-    String estadoSeleccionado = 'Disponible';
+  void _showParticipacionDialog(
+    String zonaId,
+    Map<String, dynamic> zona,
+  ) async {
+    if (userId == null) return;
+    final yaParticipado = await DBHelper.yaParticipa(zonaId, userId!);
+
+    if (yaParticipado) {
+      showDialog(
+        context: context,
+        builder:
+            (_) => AlertDialog(
+              title: const Text('Ya participaste'),
+              content: const Text(
+                'Ya registraste tu participación en esta zona.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Aceptar'),
+                ),
+              ],
+            ),
+      );
+      return;
+    }
+
+    String tareaSeleccionada = 'Siembra';
 
     showDialog(
       context: context,
@@ -49,124 +91,98 @@ class _ZonaCultivoScreenState extends State<ZonaCultivoScreen> {
             ),
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Nueva Zona de Cultivo',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF2E7D32),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildTextField(nombreController, 'Nombre', Icons.label),
-                    _buildTextField(
-                      tamanoController,
-                      'Tamaño',
-                      Icons.straighten,
-                    ),
-                    _buildTextField(
-                      categoriaController,
-                      'Categoría',
-                      Icons.category,
-                    ),
-                    _buildTextField(cultivoController, 'Cultivo', Icons.grass),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: DropdownButtonFormField<String>(
-                        value: estadoSeleccionado,
-                        decoration: InputDecoration(
-                          labelText: 'Estado',
-                          prefixIcon: const Icon(Icons.flag),
-                          filled: true,
-                          fillColor: Colors.grey.shade100,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
+              child: StatefulBuilder(
+                builder: (context, setState) {
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Registro de participación',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2E7D32),
                         ),
-                        items:
-                            [
-                                  'Disponible',
-                                  'Ocupado',
-                                  'En mantenimiento',
-                                  'Pendiente',
-                                ]
-                                .map(
-                                  (e) => DropdownMenuItem(
-                                    value: e,
-                                    child: Text(e),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        zona['nombre'],
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Tamaño: ${zona['tamano']}'),
+                      Text(zona['categoria'] ?? ''),
+                      Text(zona['cultivo'] ?? ''),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Tarea realizada',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Wrap(
+                        spacing: 16,
+                        children:
+                            ['Siembra', 'Riego', 'Poda', 'Limpieza'].map((
+                              tarea,
+                            ) {
+                              return Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Radio<String>(
+                                    value: tarea,
+                                    groupValue: tareaSeleccionada,
+                                    onChanged:
+                                        (value) => setState(
+                                          () => tareaSeleccionada = value!,
+                                        ),
                                   ),
-                                )
-                                .toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() {
-                              estadoSeleccionado = value;
-                            });
-                          }
-                        },
+                                  Text(tarea),
+                                ],
+                              );
+                            }).toList(),
                       ),
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Cancelar'),
-                        ),
-                        ElevatedButton(
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF2E7D32),
                           ),
                           onPressed: () async {
-                            await zonasCollection.add({
-                              'nombre': nombreController.text,
-                              'tamano': tamanoController.text,
-                              'categoria': categoriaController.text,
-                              'cultivo': cultivoController.text,
-                              'estado': estadoSeleccionado,
+                            await participacionesCollection.add({
+                              'usuarioId': userId,
+                              'zonaId': zonaId,
+                              'nombreUsuario': userName,
+                              'nombreZona': zona['nombre'],
+                              'tarea': tareaSeleccionada,
+                              'fecha': FieldValue.serverTimestamp(),
                             });
+                            await DBHelper.guardarParticipacion({
+                              'zonaId': zonaId,
+                              'usuarioId': userId,
+                              'nombreZona': zona['nombre'],
+                              'tarea': tareaSeleccionada,
+                              'fecha': DateTime.now().toIso8601String(),
+                            });
+
+                            setState(() {
+                              zonasRegistradas[zonaId] = true;
+                            });
+
                             Navigator.pop(context);
-                            setState(() {});
                           },
-                          child: const Text('Guardar'),
+                          child: const Text('Registrar'),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ),
-    );
-  }
-
-  Widget _buildTextField(
-    TextEditingController controller,
-    String label,
-    IconData icon,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        controller: controller,
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon),
-          filled: true,
-          fillColor: Colors.grey.shade100,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-        ),
-      ),
     );
   }
 
@@ -232,50 +248,62 @@ class _ZonaCultivoScreenState extends State<ZonaCultivoScreen> {
               child: StreamBuilder<QuerySnapshot>(
                 stream: zonasCollection.snapshots(),
                 builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
+                  if (!snapshot.hasData)
                     return const Center(child: CircularProgressIndicator());
-                  }
                   final zonas = snapshot.data!.docs;
                   return ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: zonas.length,
                     itemBuilder: (context, index) {
-                      final zona = zonas[index].data() as Map<String, dynamic>;
+                      final zonaDoc = zonas[index];
+                      final zona = zonaDoc.data() as Map<String, dynamic>;
+                      final zonaId = zonaDoc.id;
+                      final yaRegistrado = zonasRegistradas[zonaId] ?? false;
                       final color =
                           index.isEven
                               ? const Color(0xFFDFF5E1)
                               : const Color(0xFFFFF3C2);
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: color,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              zona['nombre'] ?? '',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text('Tamaño: ${zona['tamano'] ?? ''}'),
-                            Text(zona['categoria'] ?? ''),
-                            Text(zona['cultivo'] ?? ''),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: Text(
-                                zona['estado'] ?? '',
+
+                      return GestureDetector(
+                        onTap:
+                            () =>
+                                userRole != 'admin'
+                                    ? _showParticipacionDialog(zonaId, zona)
+                                    : null,
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: color,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                zona['nombre'] ?? '',
                                 style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 8),
+                              Text('Tamaño: ${zona['tamano'] ?? ''}'),
+                              Text(zona['categoria'] ?? ''),
+                              Text(zona['cultivo'] ?? ''),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Text(
+                                  yaRegistrado
+                                      ? 'Registrado'
+                                      : (zona['estado'] ?? 'Disponible'),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     },
@@ -285,11 +313,6 @@ class _ZonaCultivoScreenState extends State<ZonaCultivoScreen> {
             ),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF2E7D32),
-        child: const Icon(Icons.add),
-        onPressed: _showAddZonaDialog,
       ),
     );
   }

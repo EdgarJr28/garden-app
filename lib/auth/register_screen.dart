@@ -69,6 +69,7 @@ class _RegisterScreenState extends State<RegisterScreen>
               'telefono': phoneController.text.trim(),
               'zona': zoneController.text.trim(),
               'diasDisponibles': daysController.text.trim(),
+              'rol': 'usuario',
               'uid': uid,
             })
             .catchError((e) {
